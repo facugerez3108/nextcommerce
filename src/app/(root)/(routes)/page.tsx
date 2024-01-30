@@ -1,7 +1,7 @@
 "use client";
 
 import { Modal } from "@/components/ui/modal";
-import { useStoreModal } from "../../../hooks/use-store-modal";
+import { useStoreModal } from "../../../../hooks/use-store-modal";
 import { useEffect } from "react";
 
 const SetupPage = () => {
@@ -17,11 +17,7 @@ const SetupPage = () => {
 
   }, [isOpen, onOpen])
   
-  return (
-    <div className="p-4">
-      Root page
-    </div>
-  )
+  return null;
 }
 
 
