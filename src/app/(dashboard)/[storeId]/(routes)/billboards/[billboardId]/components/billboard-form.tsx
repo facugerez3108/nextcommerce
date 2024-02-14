@@ -158,7 +158,6 @@ const BillboardForm: React.FC<BillboardProps> = ({
                     </Button>
                 </form>
             </Form>
-            <Separator />
         </>
         
     )
