@@ -112,29 +112,29 @@ model Image {
 }
 
 
+
 model Order {
-  id  String  @id @default(uuid())
-  storeId String 
-  store Store @relation("StoreToOrder", fields: [storeId], references: [id])
-  isPaid Boolean @default(false)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  phone String @default("")
-  address String @default("")
-  orderItems OrderItem[]
+  id        String    @id @default(uuid())
+  storeId     String    // Foreign Key to Store
+  store       Store     @relation("StoreToOrder", fields: [storeId], references: [id])
+  orderItems OrderItem[] // Relation to OrderItem model
+  isPaid     Boolean   @default(false)
+  phone      String    @default("")
+  address    String    @default("")
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
 
   @@index([storeId])
 }
 
-
+// Intermediary for a many-to-many relationship
 model OrderItem {
-  id  String  @id @default(uuid())
-  orderId String
-  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  productId String
-  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  id        String  @id @default(uuid())
+  orderId   String  // Foreign Key to Order
+  order     Order   @relation(fields: [orderId], references: [id])
+  productId String  // Foreign Key to Product
+  product   Product @relation(fields: [productId], references: [id])
 
   @@index([orderId])
   @@index([productId])
-
 }

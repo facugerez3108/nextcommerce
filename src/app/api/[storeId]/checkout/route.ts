@@ -6,28 +6,42 @@ import prismadb from '@/lib/prismadb';
 
 const corsHeaders = {
     "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type, Authorization",
+    "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS"
 }
 
-export async function OPTIONS() {
-    return NextResponse.json({}, { headers: corsHeaders });
+export async function OPTIONS(
+    request: Request,
+) {
+    const allowedOrigin = request.headers.get("*");
+    const response = new NextResponse(null, {
+      status: 200,
+      headers: {
+        "Access-Control-Allow-Origin": allowedOrigin || "*",
+        "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+        "Access-Control-Allow-Headers":
+          "Content-Type, Authorization, X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Date, X-Api-Version",
+        "Access-Control-Max-Age": "86400",
+      },
+    });
+  
+    return response;
 };
 
 export async function POST(
     req: Request,
     { params }: { params: { storeId: string }}
 ) {
-    const { productIds } = await req.json();
+    const { productsIds } = await req.json();
 
-    if(!productIds || productIds.lenght === 0) {
+    if(!productsIds || productsIds.lenght === 0) {
         return new NextResponse("El ID de los productos es requerido", { status: 400 })
     }
 
     const products = await prismadb.product.findMany({
         where: {
             id: {
-                in: productIds,
+                in: productsIds,
             }
         }
     });
@@ -52,7 +66,7 @@ export async function POST(
             storeId: params.storeId,
             isPaid: false,
             orderItems: {
-                create: productIds.map((productId: string) => ({
+                create: productsIds.map((productId: string) => ({
                     product: {
                         connect: {
                             id: productId
@@ -62,6 +76,8 @@ export async function POST(
             }
         }
     })
+
+    console.log(order)
 
     const session = await stripe.checkout.sessions.create({
         line_items,
@@ -77,7 +93,5 @@ export async function POST(
         }
     })
 
-    return NextResponse.json({ url: session.url }, {
-        headers: corsHeaders
-    })
+    return NextResponse.json({ url: session.url }, {headers: corsHeaders})
 }
