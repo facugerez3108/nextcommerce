@@ -1,97 +1,69 @@
-import Stripe from 'stripe';
-import { NextResponse } from 'next/server';
+import Stripe from "stripe"
+import { headers } from "next/headers"
+import { NextResponse } from "next/server"
 
-import { stripe } from '@/lib/stripe';
-import prismadb from '@/lib/prismadb';
+import { stripe } from "@/lib/stripe"
+import prismadb from "@/lib/prismadb"
 
-const corsHeaders = {
-    "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Headers": "Content-Type, Authorization",
-    "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS"
-}
+export async function POST(req: Request) {
+  const body = await req.text()
+  const signature = headers().get("Stripe-Signature") as string
 
-export async function OPTIONS(
-    request: Request,
-) {
-    const allowedOrigin = request.headers.get("*");
-    const response = new NextResponse(null, {
-      status: 200,
-      headers: {
-        "Access-Control-Allow-Origin": allowedOrigin || "*",
-        "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-        "Access-Control-Allow-Headers":
-          "Content-Type, Authorization, X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Date, X-Api-Version",
-        "Access-Control-Max-Age": "86400",
+  let event: Stripe.Event
+
+  try {
+    event = stripe.webhooks.constructEvent(
+      body,
+      signature,
+      process.env.STRIPE_WEBHOOK_SECRET!
+    )
+  } catch (error: any) {
+    return new NextResponse(`Webhook Error: ${error.message}`, { status: 400 })
+  }
+
+  const session = event.data.object as Stripe.Checkout.Session;
+  const address = session?.customer_details?.address;
+
+  const addressComponents = [
+    address?.line1,
+    address?.line2,
+    address?.city,
+    address?.state,
+    address?.postal_code,
+    address?.country
+  ];
+
+  const addressString = addressComponents.filter((c) => c !== null).join(', ');
+
+
+  if (event.type === "checkout.session.completed") {
+    const order = await prismadb.order.update({
+      where: {
+        id: session?.metadata?.orderId,
       },
-    });
-  
-    return response;
-};
-
-export async function POST(
-    req: Request,
-    { params }: { params: { storeId: string }}
-) {
-    const { productsIds } = await req.json();
-
-    if(!productsIds || productsIds.lenght === 0) {
-        return new NextResponse("El ID de los productos es requerido", { status: 400 })
-    }
-
-    const products = await prismadb.product.findMany({
-        where: {
-            id: {
-                in: productsIds,
-            }
-        }
+      data: {
+        isPaid: true,
+        address: addressString,
+        phone: session?.customer_details?.phone || '',
+      },
+      include: {
+        orderItems: true,
+      }
     });
 
-    const line_items: Stripe.Checkout.SessionCreateParams.LineItem[] = [];
+    const productIds = order.orderItems.map((orderItem) => orderItem.productId);
 
-    products.forEach((product) => {
-        line_items.push({
-            quantity: 1,
-            price_data: {
-                currency:'USD',
-                product_data: {
-                    name: product.name,
-                },
-                unit_amount: product.price.toNumber() * 100,   
-            }
-        })
-    })
-
-    const order = await prismadb.order.create({
-        data: {
-            storeId: params.storeId,
-            isPaid: false,
-            orderItems: {
-                create: productsIds.map((productId: string) => ({
-                    product: {
-                        connect: {
-                            id: productId
-                        }
-                    }
-                }))
-            }
-        }
-    })
-
-    console.log(order)
-
-    const session = await stripe.checkout.sessions.create({
-        line_items,
-        mode: 'payment',
-        billing_address_collection: "required",
-        phone_number_collection: {
-            enabled: true,
+    await prismadb.product.updateMany({
+      where: {
+        id: {
+          in: [...productIds],
         },
-        success_url: `${process.env.FRONTEND_STORE_URL}/cart?success=1`,
-        cancel_url: `${process.env.FRONTEND_STORE_URL}/cart?canceled=1`,
-        metadata: {
-            orderId: order.id,
-        }
-    })
+      },
+      data: {
+        isArchived: true
+      }
+    });
+  }
 
-    return NextResponse.json({ url: session.url }, {headers: corsHeaders})
-}
+  return new NextResponse(null, { status: 200 });
+};

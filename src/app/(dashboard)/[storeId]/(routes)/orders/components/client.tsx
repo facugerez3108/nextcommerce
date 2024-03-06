@@ -2,9 +2,10 @@
 
 import { DataTable } from "@/components/ui/data-table";
 import { Heading } from "@/components/ui/heading";
-import { Separator } from "@radix-ui/react-separator";
+
 
 import { columns, OrderColumn } from "./columns";
+import { Separator } from "@/components/ui/separator";
 
 interface OrdersClientProps {
     data: OrderColumn[]
